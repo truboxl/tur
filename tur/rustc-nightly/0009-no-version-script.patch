@@ -1,0 +1,20 @@
+--- a/compiler/rustc_codegen_ssa/src/back/linker.rs
++++ b/compiler/rustc_codegen_ssa/src/back/linker.rs
+@@ -18,7 +18,7 @@
+ use rustc_session::Session;
+ use rustc_session::config::{self, CrateType, DebugInfo, LinkerPluginLto, Lto, OptLevel, Strip};
+ use rustc_span::sym;
+-use rustc_target::spec::{Cc, LinkOutputKind, LinkerFlavor, Lld};
++use rustc_target::spec::{Cc, LinkOutputKind, LinkerFlavor, Lld, TlsModel};
+ use tracing::{debug, warn};
+ 
+ use super::command::Command;
+@@ -845,6 +845,8 @@
+                 self.sess.dcx().emit_fatal(errors::VersionScriptWriteFailure { error });
+             }
+             self.link_arg("--dynamic-list").link_arg(path);
++        } else if matches!(self.sess.target.tls_model, TlsModel::Emulated) {
++            // Skip --version-script that hides __emutls_get_address for now
+         } else {
+             // Write an LD version script
+             let res: io::Result<()> = try {
