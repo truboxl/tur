@@ -18,7 +18,16 @@ termux_step_make() {
 	local build_args="--release"
 	[[ "${TERMUX_DEBUG_BUILD}" == "true" ]] && build_args=""
 
-	cargo build --jobs "${TERMUX_PKG_MAKE_PROCESSES}" --target "${CARGO_TARGET_NAME}" ${build_args}
+	# freeze-stdlib
+	# can avoid python module dependency
+	# encodings initialization failed. Only utf-8 encoding will be supported.
+	# ModuleNotFoundError: No module named 'encodings'
+	#
+	# jit
+	# turns on jit
+	local feature_args="--features freeze-stdlib,jit"
+
+	cargo build --jobs "${TERMUX_PKG_MAKE_PROCESSES}" --target "${CARGO_TARGET_NAME}" ${build_args} ${feature_args}
 }
 
 termux_step_make_install() {
