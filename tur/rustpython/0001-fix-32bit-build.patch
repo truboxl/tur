@@ -1,0 +1,70 @@
+--- a/crates/vm/src/stdlib/_io.rs
++++ b/crates/vm/src/stdlib/_io.rs
+@@ -5572,10 +5572,20 @@
+             {
+                 match fd_fstat {
+                     Ok(status) => {
++                        #[cfg(not(all(target_os = "android", target_pointer_width = "32")))]
+                         if (status.st_mode & libc::S_IFMT) == libc::S_IFDIR {
+                             // If fd was passed by user, don't close it on error
+                             if !fd_is_own {
+                                 zelf.fd.store(-1);
++                            }
++                            let err = std::io::Error::from_raw_os_error(libc::EISDIR);
++                            return Err(OSErrorBuilder::with_filename(&err, filename, vm));
++                        }
++                        #[cfg(all(target_os = "android", target_pointer_width = "32"))]
++                        if (status.st_mode as u16 & libc::S_IFMT) == libc::S_IFDIR {
++                            // If fd was passed by user, don't close it on error
++                            if !fd_is_own {
++                                zelf.fd.store(-1);
+                             }
+                             let err = std::io::Error::from_raw_os_error(libc::EISDIR);
+                             return Err(OSErrorBuilder::with_filename(&err, filename, vm));
+--- a/crates/vm/src/stdlib/os.rs
++++ b/crates/vm/src/stdlib/os.rs
+@@ -1329,9 +1329,12 @@
+             #[cfg(not(windows))]
+             #[allow(clippy::useless_conversion, reason = "needed for 32-bit platforms")]
+             let st_blksize = i64::from(stat.st_blksize);
+-            #[cfg(not(windows))]
++            #[cfg(not(any(windows, all(target_os = "android", target_pointer_width = "32"))))]
+             #[allow(clippy::useless_conversion, reason = "needed for 32-bit platforms")]
+             let st_blocks = i64::from(stat.st_blocks);
++            #[cfg(all(target_os = "android", target_pointer_width = "32"))]
++            #[allow(clippy::useless_conversion, reason = "needed for 32-bit platforms")]
++            let st_blocks = stat.st_blocks as i64;
+ 
+             Self {
+                 st_mode: vm.ctx.new_pyref(stat.st_mode),
+--- a/crates/vm/src/stdlib/pwd.rs
++++ b/crates/vm/src/stdlib/pwd.rs
+@@ -46,6 +46,8 @@
+                     .into_string()
+                     .unwrap_or_else(|s| s.to_string_lossy().into_owned())
+             };
++            #[cfg(not(all(target_os = "android", target_pointer_width = "32")))]
++            {
+             PasswdData {
+                 pw_name: user.name,
+                 pw_passwd: cstr_lossy(user.passwd),
+@@ -55,6 +57,19 @@
+                 pw_dir: pathbuf_lossy(user.dir),
+                 pw_shell: pathbuf_lossy(user.shell),
+             }
++            }
++            #[cfg(all(target_os = "android", target_pointer_width = "32"))]
++            {
++            PasswdData {
++                pw_name: user.name,
++                pw_passwd: cstr_lossy(user.passwd),
++                pw_uid: user.uid.as_raw(),
++                pw_gid: user.gid.as_raw(),
++                pw_gecos: String::new(),
++                pw_dir: pathbuf_lossy(user.dir),
++                pw_shell: pathbuf_lossy(user.shell),
++            }
++            }
+         }
+     }
+ 
